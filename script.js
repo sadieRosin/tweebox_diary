@@ -14,9 +14,14 @@ const calPrevBtn = document.getElementById('cal-prev-month');
 const calNextBtn = document.getElementById('cal-next-month');
 const calDaysContainer = document.getElementById('calendar-days');
 
+// Supabase Configuration
+const SUPABASE_URL = 'https://mpxfzdyqchqhlzhaugtz.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1weGZ6ZHlxY2hxaGx6aGF1Z3R6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzczNTgxMDMsImV4cCI6MjA5MjkzNDEwM30.508lmdomO_ET0RdgcJgEpk_EZGeEms-Jo7znH4gQWA4';
+const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
 let currentDate = new Date();
 let viewDate = new Date(); // Date used for viewing in calendar modal
-let allMemos = JSON.parse(localStorage.getItem('serene-notes-data')) || {};
+let allMemos = []; // Now stores only the memos for the current date fetched from Supabase
 
 // --- Date Logic ---
 function formatDate(date) {
@@ -134,64 +139,79 @@ calendarModal.addEventListener('click', (e) => {
 });
 
 // --- Memo Logic ---
-function saveMemos() {
-    localStorage.setItem('serene-notes-data', JSON.stringify(allMemos));
-}
+// Removed saveMemos since we use Supabase now
 
-function addMemo() {
+async function addMemo() {
     const text = memoInput.value.trim();
     if (text === '') return;
 
     const dateKey = getDateKey(currentDate);
-    if (!allMemos[dateKey]) allMemos[dateKey] = [];
-
     const newMemo = {
-        id: Date.now(),
         text: text,
         completed: false,
-        time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+        time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        date_key: dateKey
     };
 
-    allMemos[dateKey].unshift(newMemo);
-    saveMemos();
-    memoInput.value = '';
-    renderMemos();
-}
+    const { error } = await supabaseClient
+        .from('memos')
+        .insert([newMemo]);
 
-function toggleMemo(id) {
-    const dateKey = getDateKey(currentDate);
-    const memo = allMemos[dateKey].find(m => m.id === id);
-    if (memo) {
-        memo.completed = !memo.completed;
-        saveMemos();
-        renderMemos();
+    if (error) {
+        console.error('Error adding memo:', error);
+        return;
     }
+
+    memoInput.value = '';
+    await renderMemos();
 }
 
-function deleteMemo(id) {
-    const dateKey = getDateKey(currentDate);
-    allMemos[dateKey] = allMemos[dateKey].filter(m => m.id !== id);
-    saveMemos();
-    renderMemos();
+async function toggleMemo(id, currentStatus) {
+    const { error } = await supabaseClient
+        .from('memos')
+        .update({ completed: !currentStatus })
+        .eq('id', id);
+
+    if (error) {
+        console.error('Error toggling memo:', error);
+        return;
+    }
+    await renderMemos();
 }
 
-function editMemo(id, liElement) {
-    const dateKey = getDateKey(currentDate);
-    const memo = allMemos[dateKey].find(m => m.id === id);
+async function deleteMemo(id) {
+    const { error } = await supabaseClient
+        .from('memos')
+        .delete()
+        .eq('id', id);
+
+    if (error) {
+        console.error('Error deleting memo:', error);
+        return;
+    }
+    await renderMemos();
+}
+
+async function editMemo(id, liElement, originalText) {
     const body = liElement.querySelector('.memo-body');
-    const originalText = memo.text;
     
     body.innerHTML = `<input type="text" class="edit-input" value="${originalText}">`;
     const input = body.querySelector('input');
     input.focus();
     
-    const finishEdit = () => {
+    const finishEdit = async () => {
         const newText = input.value.trim();
         if (newText && newText !== originalText) {
-            memo.text = newText;
-            saveMemos();
+            const { error } = await supabaseClient
+                .from('memos')
+                .update({ text: newText })
+                .eq('id', id);
+            
+            if (error) {
+                console.error('Error updating memo:', error);
+            }
         }
-        renderMemos();
+        await renderMemos();
     };
 
     input.addEventListener('blur', finishEdit);
@@ -200,9 +220,19 @@ function editMemo(id, liElement) {
     });
 }
 
-function renderMemos() {
+async function renderMemos() {
     const dateKey = getDateKey(currentDate);
-    const todayMemos = allMemos[dateKey] || [];
+    
+    const { data: todayMemos, error } = await supabaseClient
+        .from('memos')
+        .select('*')
+        .eq('date_key', dateKey)
+        .order('created_at', { ascending: false });
+
+    if (error) {
+        console.error('Error fetching memos:', error);
+        return;
+    }
     
     memoList.innerHTML = '';
     emptyMsg.style.display = todayMemos.length === 0 ? 'block' : 'none';
@@ -230,9 +260,9 @@ function renderMemos() {
             </div>
         `;
 
-        li.querySelector('input[type="checkbox"]').addEventListener('change', () => toggleMemo(memo.id));
+        li.querySelector('input[type="checkbox"]').addEventListener('change', () => toggleMemo(memo.id, memo.completed));
         li.querySelector('.delete-btn').addEventListener('click', () => deleteMemo(memo.id));
-        li.querySelector('.edit-btn').addEventListener('click', () => editMemo(memo.id, li));
+        li.querySelector('.edit-btn').addEventListener('click', () => editMemo(memo.id, li, memo.text));
         
         memoList.appendChild(li);
     });
