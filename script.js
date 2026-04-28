@@ -17,7 +17,27 @@ const calDaysContainer = document.getElementById('calendar-days');
 // Supabase Configuration
 const SUPABASE_URL = 'https://mpxfzdyqchqhlzhaugtz.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1weGZ6ZHlxY2hxaGx6aGF1Z3R6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzczNTgxMDMsImV4cCI6MjA5MjkzNDEwM30.508lmdomO_ET0RdgcJgEpk_EZGeEms-Jo7znH4gQWA4';
-const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+let supabaseClient;
+
+// Global error logger for debugging on live site
+window.onerror = function(msg, url, lineNo, columnNo, error) {
+    alert('오류 발생: ' + msg + '\n위치: ' + lineNo + ':' + columnNo);
+    return false;
+};
+
+try {
+    if (typeof supabase === 'undefined') {
+        alert('Supabase 라이브러리가 로드되지 않았습니다. 인터넷 연결이나 CDN 설정을 확인해주세요.');
+    } else {
+        supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+            auth: {
+                persistSession: false // 추적 방지 기능으로 인한 차단을 피하기 위해 세션 저장 기능을 끕니다.
+            }
+        });
+    }
+} catch (e) {
+    alert('Supabase 초기화 실패: ' + e.message);
+}
 
 let currentDate = new Date();
 let viewDate = new Date(); // Date used for viewing in calendar modal
