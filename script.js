@@ -159,6 +159,7 @@ async function addMemo() {
 
     if (error) {
         console.error('Error adding memo:', error);
+        alert('메모 추가 실패: ' + error.message);
         return;
     }
 
@@ -174,6 +175,7 @@ async function toggleMemo(id, currentStatus) {
 
     if (error) {
         console.error('Error toggling memo:', error);
+        alert('상태 변경 실패: ' + error.message);
         return;
     }
     await renderMemos();
@@ -187,6 +189,7 @@ async function deleteMemo(id) {
 
     if (error) {
         console.error('Error deleting memo:', error);
+        alert('삭제 실패: ' + error.message);
         return;
     }
     await renderMemos();
@@ -209,6 +212,7 @@ async function editMemo(id, liElement, originalText) {
             
             if (error) {
                 console.error('Error updating memo:', error);
+                alert('수정 실패: ' + error.message);
             }
         }
         await renderMemos();
@@ -231,6 +235,7 @@ async function renderMemos() {
 
     if (error) {
         console.error('Error fetching memos:', error);
+        alert('데이터 로드 실패: ' + error.message);
         return;
     }
     
